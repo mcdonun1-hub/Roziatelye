@@ -85,7 +85,7 @@ export async function POST(request: Request, { params }: RouteContext) {
         400;
 
       return NextResponse.json(
-        { error: true, message: errorCode, detail: result.detail },
+        { error: true, message: errorCode },
         { status }
       );
     }

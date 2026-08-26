@@ -1,95 +1,91 @@
-# 1. AUDIT SUMMARY
+# Phase 15 Production Audit Report
 
-ممیزی کامل پروژه Morrow پس از Phases 1–13 انجام شد. حوزه‌های احراز هویت، مجوزها، مالکیت creator، لایه RLS، امنیت Storage، CDN عمومی، collections، designs، media processing، dashboard، marketplace، APIها، مدیریت خطا، اعتبارسنجی ورودی، متغیرهای محیطی، مرز server/client، SEO، i18n/RTL، عملکرد، مسیرهای legacy و معماری تکراری بررسی شدند. رابط کاربری، طراحی بصری، نسخه Next.js و مهاجرت‌های قدیمی تغییر داده نشدند.
+## 1. Audit Summary
 
-یک مشکل واقعی و مهم در `lib/env.ts` پیدا شد: دسترسی پویا به `process.env[key]` برای متغیرهای `NEXT_PUBLIC_*` با bundling مرورگر Next.js 13.5.1 سازگار نیست. این مورد به‌صورت محدود و بدون تغییر API عمومی اصلاح شد.
+وضعیت آمادگی تولید: **PASS با caveatهای استقرار**. ممیزی فقط‌خواندنی روی وضعیت فعلی repository انجام شد و سپس فقط یک ایراد امنیتی واقعی اصلاح شد: route آپلود، جزئیات داخلی خطاهای Storage را به client برمی‌گرداند. این جزئیات اکنون حذف شده‌اند و error code عمومی حفظ شده است.
 
-# 2. EXISTING FUNCTIONALITY VERIFIED
+هیچ issue بحرانی یا high باقی‌مانده از ممیزی کد پیدا نشد. دو مورد medium/low پیشینی باقی مانده‌اند: warningهای `<img>` در ESLint و deopt شدن `/discover` به client-side rendering. این‌ها blocker امنیتی یا data-integrity نیستند و در این فاز بدون تغییر UI باقی ماندند.
 
-احراز هویت server-side در مسیرهای creator با `supabase.auth.getUser()` انجام می‌شود. سرویس‌های طراحی و collection مالکیت را با user/creator احراز‌شده بررسی می‌کنند و `creator_id` از ورودی کلاینت دریافت نمی‌شود. مسیرهای public از سرویس‌های public-safe استفاده می‌کنند و فیلدهای خصوصی مانند `user_id`، `admin_note` و storage path را برنمی‌گردانند.
+## 2. Files Inspected
 
-مهاجرت‌های موجود برای جدول‌های marketplace، creator، designs، collections، collection items، favorites، media processing و Storage بررسی شدند. bucket خصوصی `designs-private` و bucket عمومی `designs-public` از هم جدا هستند. مسیرهای dashboard، صفحات فارسی و انگلیسی، loading/error/not-found، CDN thumbnail/preview و APIهای creator در کد موجود هستند.
+دایرکتوری‌ها و فایل‌های مهم زیر بررسی شدند: `package.json`، `package-lock.json`، `next.config.js`، `tsconfig.json`، `.eslintrc.json`، `middleware.ts`، `lib/env.ts`، تمام `lib/supabase/*`، `services/*`، `hooks/*`، `types/*`، `app/*`، `features/*`، `components/*`، هر ۹ API route موجود در `app/api`، هر ۱۱ migration در `supabase/migrations`، `supabase/functions/media-worker/*`، مسیرهای collection عمومی، error/loading/not-found boundaryها و مسیرهای legacy.
 
-# 3. REAL ISSUES FOUND
+## 3. Files Modified
 
-مشکل واقعی پیدا‌شده، استفاده از دسترسی پویا در `lib/env.ts` بود:
+`app/api/creator/designs/[id]/upload/route.ts` اصلاح شد. علت، جلوگیری از افشای `result.detail` بود که می‌توانست پیام داخلی Supabase Storage، جزئیات زیرساخت یا اطلاعات مربوط به مسیر/عملیات Storage را به client منتقل کند. فقط فیلد `detail` از response خطا حذف شد؛ status code، error code و response contract موفق بدون تغییر باقی ماند.
 
-```ts
-process.env[key]
-```
+`docs/phase-15-production-audit-report.md` به‌عنوان همین گزارش ایجاد شد. این فایل روی رفتار runtime، Supabase یا marketplace اثری ندارد.
 
-این الگو برای متغیرهای public محیطی ممکن است باعث شود مقدارهای `NEXT_PUBLIC_SUPABASE_URL` و `NEXT_PUBLIC_SUPABASE_ANON_KEY` در bundle مرورگر جایگزین نشوند. همچنین `optionalEnv` نیز از همین الگو استفاده می‌کرد. هیچ مشکل قطعی دیگری که نیازمند تغییر کد، migration جدید یا بازطراحی باشد، در ممیزی انجام‌شده اثبات نشد.
+## 4. Supabase Changes
 
-# 4. FIXES IMPLEMENTED
+**Migration required: NO.** Schema و policyهای موجود نیاز این audit را پوشش می‌دهند. designs، media_assets، collections، collection_items، Storage buckets و workflow پردازش در migrationهای موجود تعریف شده‌اند. هیچ migration جدیدی ایجاد نشد و migration قدیمی بازنویسی نشد.
 
-در `lib/env.ts` سه خواندن استاتیک اضافه شد: `_supabaseUrl`، `_supabaseAnonKey` و `_siteUrl`. توابع داخلی اکنون مقدار خوانده‌شده را دریافت می‌کنند، نه نام متغیر را؛ بنابراین دیگر هیچ `process.env[key]` در این ماژول وجود ندارد.
+## 5. Security Findings
 
-این اصلاح برای سازگاری مطمئن با browser bundling در Next.js 13.5.1 لازم بود. API عمومی بدون تغییر باقی ماند: `env.supabase.url`، `env.supabase.anonKey` و `env.site.url`. این تغییر به Supabase database یا Storage دست نمی‌زند و رفتار marketplace را تغییر نمی‌دهد؛ فقط روش خواندن configuration را ایمن می‌کند.
+| Issue | Severity | Status | Fix |
+|---|---|---|---|
+| جزئیات داخلی خطای upload در response client برگردانده می‌شد | Medium | Fixed | حذف `detail` از response در upload route؛ logging server-side حفظ شد |
+| دسترسی پویا به `process.env[key]` در وضعیت فعلی | High | Fixed before this audit / verified | `lib/env.ts` دارای static access است و جست‌وجوی نهایی نتیجه‌ای ندارد |
+| private originals در مسیر عمومی | High | Not found | جداسازی `designs-private` و `designs-public` حفظ شده است |
+| service-role secret در client bundle | Critical | Not found | هیچ service-role env یا client import ناایمن پیدا نشد |
+| raw HTML injection | Medium | Not found | تنها `dangerouslySetInnerHTML` در chart config بررسی‌شده و داده‌های HTML کاربر را مصرف نمی‌کند |
 
-# 5. FILES CREATED
+## 6. Environment Safety
 
-فایل جدید production code ایجاد نشد. این گزارش ممیزی به‌عنوان مستندات فاز در `docs/phase-15-production-readiness-audit.md` ایجاد شد.
+`lib/env.ts` در این audit حفظ شد. دسترسی static به `process.env.NEXT_PUBLIC_SUPABASE_URL`، `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY` و `process.env.NEXT_PUBLIC_SITE_URL` برقرار است. هیچ `process.env[key]` جدیدی معرفی نشد و جست‌وجوی نهایی `process.env[` در TypeScript/TSX نتیجه‌ای نداشت. مقدار secret، cookie، token یا credential چاپ یا commit نشد.
 
-# 6. FILES MODIFIED
+## 7. Authentication Audit
 
-فقط `lib/env.ts` برای رفع دسترسی پویا به متغیرهای محیطی اصلاح شد. هیچ فایل UI، CSS، Tailwind token، migration، route عمومی، service، hook یا نسخه framework تغییر نکرد.
+**PASS.** APIهای creator پیش از mutation، session را با `supabase.auth.getUser()` بررسی می‌کنند. creator identity از session/server resolution به‌دست می‌آید و `creator_id` از body کلاینت پذیرفته نمی‌شود. dashboard routeها برای user و creator gating دارند. مسیر callback خطا را با پیام عمومی مدیریت می‌کند و مسیرهای protected به login redirect می‌شوند.
 
-# 7. DATABASE CHANGES
+## 8. RLS Audit
 
-هیچ تغییر database انجام نشد. migration جدیدی ساخته نشد و migrationهای قدیمی بازنویسی نشدند، زیرا schema موجود نیاز این فاز را پوشش می‌دهد و مشکل کشف‌شده در application configuration بود.
+**PASS.** RLS برای جدول‌های marketplace فعال است و policyهای ownership برای creators، designs، collections، collection items و media وجود دارد. public read فقط برای منابع publishable/public طراحی شده است. policyهای Storage برای `designs-private` دسترسی owner-based دارند و bucket `designs-public` برای read عمومی فایل‌های منتشرشده استفاده می‌شود؛ upload/delete عمومی ایجاد نشده است. هیچ policy تضعیف یا تکراری در این فاز اضافه نشد.
 
-# 8. RLS / SECURITY AUDIT
+## 9. Media Pipeline Audit
 
-مهاجرت‌ها شامل فعال‌سازی و policyهای مالکیت برای منابع creator و همچنین policyهای Storage هستند. policyهای موجود برای designs-private به creator اجازه upload/read/delete محدودشده می‌دهند و برای anonymous دسترسی عمومی ایجاد نمی‌کنند. designs-public فقط برای خواندن عمومی فایل‌های publishable طراحی شده و policy client-side برای upload یا delete عمومی ندارد.
+**PASS.** جریان upload → `media_assets` → `designs-private` → processing jobs → preview/thumbnail → `designs-public` → CDN در کد و migrationهای موجود بررسی شد. file type، size و filename server-side بررسی می‌شوند، storage path server-generated است، ownership قبل از عملیات بررسی می‌شود و original private باقی می‌ماند. processing و CDN failure با status/log و مسیر retry مدیریت می‌شوند. هیچ تغییر در pipeline یا bucket انجام نشد.
 
-در APIها احراز هویت قبل از mutation انجام می‌شود. مالکیت collection/design در service و/یا policy/database function بررسی می‌شود. عملیات submit به وضعیت مجاز draft محدود شده و creator نمی‌تواند از مسیر عادی وضعیت approved یا published را مستقیماً تعیین کند. هیچ weakening یا policy تکراری انجام نشد.
+## 10. Collection Audit
 
-# 9. ENVIRONMENT VARIABLE AUDIT
+**PASS.** create/update/delete collection و add/remove design به creator احراز‌شده محدود هستند. membership با collection/design ownership محافظت می‌شود. public collection route فقط collectionهای public/published و designهای قابل انتشار را نمایش می‌دهد و فیلدهای private creator/media را expose نمی‌کند. هیچ feature خارج از scope اضافه نشد.
 
-قرارداد `.env.local` بدون تغییر باقی ماند و هیچ secret در repository commit نشد. `NEXT_PUBLIC_SUPABASE_URL`، `NEXT_PUBLIC_SUPABASE_ANON_KEY` و `NEXT_PUBLIC_SITE_URL` با دسترسی استاتیک خوانده می‌شوند. جست‌وجوی نهایی repository برای `process.env[` در فایل‌های TypeScript/TSX هیچ نتیجه‌ای نداشت.
+## 11. API Audit
 
-متغیرهای server-only به browser abstraction اضافه نشدند و service-role credential در کد client-facing مشاهده نشد.
+**PASS پس از اصلاح.** هر ۹ route handler بررسی شدند. routeهای mutation احراز هویت، ownership check، parsing body، validation پایه، status code و safe error response دارند. exceptionها با `internal_error` پاسخ داده می‌شوند و جزئیات داخلی به client داده نمی‌شوند. در upload route، `detail` داخلی که قبلاً در خطاهای service به response راه می‌یافت حذف شد. response موفق، endpointها و error codes تغییر نکردند.
 
-# 10. API SECURITY AUDIT
+## 12. Performance Audit
 
-هر ۹ route handler موجود بررسی شد. routeهای creator احراز هویت server-side دارند، خطاهای عمومی با status code مناسب برمی‌گردانند و exception داخلی را با پیام `internal_error` از کاربر پنهان می‌کنند. bodyهای JSON و multipart در مسیرهای مربوطه parse می‌شوند و upload از نظر filename، MIME type و اندازه در service بررسی می‌شود.
+فقط یافته‌های واقعی ثبت می‌شوند. چند warning قدیمی درباره استفاده از `<img>` به‌جای `next/image` وجود دارد و `/discover` در build به client-side rendering deopt می‌شود. این موارد measurable blocker اثبات‌شده در این audit نیستند؛ برای حفظ UI و جلوگیری از refactor غیرضروری تغییر نکردند. N+1 یا query unbounded جدیدی که نیازمند اصلاح فوری باشد پیدا نشد.
 
-مسیرهای mutation از `creator_id` کلاینت اعتماد نمی‌کنند. IDهای مسیر خالی reject می‌شوند و دسترسی به design/collection غیرمالک به‌صورت خطای عمومی یا عدم‌وجود پاسخ داده می‌شود. تغییر بزرگ یا validation framework جدید لازم تشخیص داده نشد.
+## 13. TypeScript
 
-# 11. MEDIA / CDN AUDIT
+Command: `npx tsc --noEmit`
 
-معماری private original در `designs-private` و public thumbnail/preview در `designs-public` حفظ شده است. worker server-side وظیفه انتشار CDN را دارد. storage path در server ساخته می‌شود و مسیرهای private originals از public marketplace جدا هستند. CDN failure در جریان‌های طراحی به‌عنوان خطای غیرمخرب مدیریت می‌شود و credential حساس در client bundle قرار نمی‌گیرد.
+Result: **0 errors**. Exit status: `0`.
 
-هیچ تغییر در media architecture، bucket، Storage policy یا pipeline انجام نشد.
+## 14. ESLint
 
-# 12. COLLECTION AUDIT
+Command: `npm run lint`
 
-collection CRUD به creator احراز‌شده محدود است. collection item فقط با collection و design متعلق به creator مربوطه اضافه یا حذف می‌شود. مسیر public فقط collectionهای public/published و designهای قابل انتشار را مصرف می‌کند و اطلاعات خصوصی creator را expose نمی‌کند.
+Result: **0 errors**. Warningهای pre-existing درباره `<img>` باقی مانده‌اند و warning جدیدی توسط این فاز ایجاد نشده است.
 
-هیچ قابلیت خارج از scope مانند cover upload، drag/drop ordering یا publishing UI اضافه نشد.
+## 15. Production Build
 
-# 13. BUILD RESULTS
+Command: `npm run build`
 
-`npm run build` با متغیرهای محیطی لازم با موفقیت اجرا شد و status code آن `0` بود. خروجی شامل routeهای static، SSG، server-rendered و APIهای موجود است. یک warning درباره deopt شدن `/discover` به client-side rendering در خروجی باقی مانده است؛ این warning pre-existing است و برای پنهان‌کردنش تغییری انجام نشد.
+Result: **PASS**. Exit status: `0`. build شامل routeهای static، SSG، server-rendered، API و middleware با Next.js 13.5.1 با موفقیت انجام شد. warning deopt شدن `/discover` pre-existing است و توسط Phase 15 ایجاد نشده است.
 
-# 14. TYPESCRIPT RESULT
+## 16. UI Regression
 
-`npx tsc --noEmit` با موفقیت اجرا شد و status code آن `0` بود.
+> UI redesign was NOT performed.
 
-# 15. ESLINT RESULT
+رابط marketplace، homepage، hero، discover، artist pages، design detail، dashboard، typography، colors، layout، navigation، spacing، Tailwind tokens و visual components تغییر داده نشدند. اصلاح upload route فقط response خطای API را تغییر می‌دهد و بر visual behavior اثر ندارد.
 
-`npm run lint` با موفقیت اجرا شد و status code آن `0` بود. warningهای موجود عمدتاً درباره استفاده از `<img>` به‌جای `next/image` هستند. برای جلوگیری از تغییر visual behavior و scope فاز، این موارد refactor نشدند.
+## 17. Remaining Production Blockers
 
-# 16. PRE-EXISTING ISSUES
+از نظر کد، blocker جدیدی که release را متوقف کند باقی نمانده است. برای deployment واقعی باید environment variables در hosting مقصد تنظیم شوند، migrationهای موجود روی Supabase مقصد اعمال شده باشند و smoke test احراز هویت، upload، processing، CDN و public visibility اجرا شود. این‌ها deployment verification هستند، نه ایراد اصلاح‌نشده در این audit.
 
-استفاده از `<img>` در چند بخش و warning deopt شدن `/discover` پیش از اصلاح این فاز وجود داشتند. همچنین مسیرهای legacy مانند `/`، `/discover` و `/favorites` در کنار مسیرهای locale وجود دارند؛ این ساختار به‌عنوان معماری موجود ثبت شد و بدون اثبات blocker واقعی بازنویسی نشد.
+## 18. Recommended Next Phase
 
-# 17. NEW ISSUES INTRODUCED
-
-هیچ issue جدیدی ایجاد نشد. تغییر environment abstraction API عمومی، Supabase، database، Storage، marketplace behavior، UI یا routing را تغییر نمی‌دهد.
-
-# 18. PRODUCTION READINESS STATUS
-
-وضعیت پس از اصلاح: **آماده از نظر این فاز با caveatهای مستندشده**. مشکل مهم browser environment handling رفع شد، typecheck/lint/build موفق هستند، و security boundaryهای اصلی حفظ شدند. قبل از deployment واقعی همچنان باید environment variables در سرویس hosting تنظیم شوند، Supabase migrations در محیط مقصد اعمال و smoke test احراز هویت، upload، processing، CDN و public visibility اجرا شود. این موارد deployment verification هستند و خارج از تغییرات این audit باقی مانده‌اند.
-
-برای هر تغییر انجام‌شده: دلیل تغییر، دامنه تغییر، ایمنی، اثر نداشتن بر Supabase و اثر نداشتن بر marketplace در بخش‌های 3 و 4 ثبت شده است.
+فاز بعدی پیشنهادی، **deployment verification** است: تنظیم امن environment در hosting، اعمال و بررسی migrationهای موجود در Supabase مقصد، اجرای smoke testهای authenticated و anonymous، و بررسی واقعی Storage/CDN با داده آزمایشی. ارتقای Next.js، بازطراحی UI، migration جدید یا refactor وسیع بر اساس این audit توصیه نمی‌شود.
