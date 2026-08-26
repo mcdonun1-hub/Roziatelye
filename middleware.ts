@@ -1,74 +1,61 @@
-import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { locales, defaultLocale, type Locale } from '@/lib/i18n';
+import { NextRequest, NextResponse } from 'next/server';
+import { defaultLocale, locales, type Locale } from '@/lib/i18n';
 
-/**
- * Protected route patterns (must be authenticated).
- * Locale prefix will be stripped before matching.
- */
+const PUBLIC_FILE = /\.[^/]+$/;
 const PROTECTED_PATHS = ['/profile', '/become-creator', '/creator/dashboard'];
-
-/**
- * Auth-only paths — redirect to home if already authenticated.
- */
 const AUTH_ONLY_PATHS = ['/auth/login', '/auth/signup'];
 
-function getLocaleFromPath(pathname: string): Locale | null {
-  for (const locale of locales) {
-    if (pathname.startsWith(`/${locale}/`) || pathname === `/${locale}`) {
-      return locale;
-    }
-  }
-  return null;
+function localeFromPath(pathname: string): Locale | null {
+  const segment = pathname.split('/')[1];
+  return locales.includes(segment as Locale) ? (segment as Locale) : null;
 }
 
-/**
- * Strips the locale prefix from a pathname.
- * e.g. /fa/profile → /profile
- */
 function stripLocale(pathname: string): string {
-  for (const locale of locales) {
-    if (pathname.startsWith(`/${locale}/`)) return pathname.slice(locale.length + 1);
-    if (pathname === `/${locale}`) return '/';
+  const segments = pathname.split('/');
+  if (locales.includes(segments[1] as Locale)) {
+    const stripped = `/${segments.slice(2).join('/')}`;
+    return stripped === '/' ? '/' : stripped.replace(/\/$/, '');
   }
   return pathname;
 }
 
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+function matchesRoute(pathname: string, routes: string[]) {
+  return routes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
 
-  // Skip static assets and API routes (except auth API — handled separately)
+export async function middleware(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
-    pathname.startsWith('/images') ||
-    pathname.includes('.')
+    PUBLIC_FILE.test(pathname)
   ) {
     return NextResponse.next();
   }
 
-  // ── 1. Locale redirect ───────────────────────────────────────────────────
-  const localeInPath = getLocaleFromPath(pathname);
-  if (!localeInPath) {
-    const url = request.nextUrl.clone();
-    url.pathname = `/${defaultLocale}${pathname === '/' ? '' : pathname}`;
-    return NextResponse.redirect(url);
+  const locale = localeFromPath(pathname);
+  if (!locale) {
+    const destination = pathname === '/' ? `/${defaultLocale}` : `/${defaultLocale}${pathname}`;
+    return NextResponse.redirect(new URL(`${destination}${search}`, request.url));
   }
 
-  // ── 2. Supabase session refresh ──────────────────────────────────────────
-  // We must call createServerClient here (in middleware) to refresh the
-  // auth token and update session cookies on every request.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-rozi-locale', locale);
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  const pathWithoutLocale = stripLocale(pathname);
+  const isProtected = matchesRoute(pathWithoutLocale, PROTECTED_PATHS);
+  const isAuthOnly = matchesRoute(pathWithoutLocale, AUTH_ONLY_PATHS);
+
+  // Public frontend routes deliberately stop here: no auth or Supabase request is
+  // needed to render the Phase 22B foundation. Auth behavior remains available
+  // on the routes that require it so backend reconnection is not removed.
+  if (!isProtected && !isAuthOnly) return response;
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  // If env vars missing (build time), skip auth logic
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.next();
-  }
-
-  const response = NextResponse.next({
-    request: { headers: request.headers },
-  });
+  if (!supabaseUrl || !supabaseAnonKey) return response;
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -76,50 +63,35 @@ export async function middleware(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet) {
-        // Write refreshed cookies to both request and response
-        cookiesToSet.forEach(({ name, value }) => {
-          request.cookies.set(name, value);
-        });
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
       },
     },
   });
 
-  // IMPORTANT: getUser() refreshes the session token if needed.
-  // Do NOT use getSession() in middleware — use getUser() for security.
   const { data: { user } } = await supabase.auth.getUser();
 
-  // ── 3. Route protection ──────────────────────────────────────────────────
-  const pathWithoutLocale = stripLocale(pathname);
-
-  const isProtected = PROTECTED_PATHS.some(
-    (p) => pathWithoutLocale === p || pathWithoutLocale.startsWith(`${p}/`)
-  );
-  const isAuthOnly = AUTH_ONLY_PATHS.some(
-    (p) => pathWithoutLocale === p || pathWithoutLocale.startsWith(`${p}/`)
-  );
-
   if (isProtected && !user) {
-    // Not authenticated — redirect to login with return URL
     const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = `/${localeInPath}/auth/login`;
+    loginUrl.pathname = `/${locale}/auth/login`;
     loginUrl.searchParams.set('next', pathname);
-    return NextResponse.redirect(loginUrl);
+    const redirect = NextResponse.redirect(loginUrl);
+    response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
   }
 
   if (isAuthOnly && user) {
-    // Already authenticated — redirect away from login/signup
     const profileUrl = request.nextUrl.clone();
-    profileUrl.pathname = `/${localeInPath}/profile`;
+    profileUrl.pathname = `/${locale}/profile`;
     profileUrl.searchParams.delete('next');
-    return NextResponse.redirect(profileUrl);
+    const redirect = NextResponse.redirect(profileUrl);
+    response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
   }
 
   return response;
 }
 
 export const config = {
-  matcher: ['/((?!_next|api|images).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };

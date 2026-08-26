@@ -1,40 +1,35 @@
-/**
- * Home page — Server Component.
- *
- * Data fetching happens on the server (no client-side useEffect).
- * The interactive shell (header, favourite toggles) is delegated to
- * HomePageClient which is a Client Component.
- */
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { locales, type Locale } from '@/lib/i18n';
-import { getFeaturedDesigns, getCategories } from '@/services';
+import { getLocalCategories, getLocalFeaturedDesigns } from '@/data/marketplace';
 import { HomePageClient } from '@/features/home/HomePageClient';
 
 interface Props {
   params: { locale: string };
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export function generateMetadata({ params }: Props): Metadata {
   if (!locales.includes(params.locale as Locale)) return {};
   const locale = params.locale as Locale;
+
   return {
     title: locale === 'fa'
-      ? 'مورو — دنیایی از الگو، ساخته‌ی انسان‌ها'
-      : 'Morrow — A world of pattern, made by people',
+      ? 'رُزی آتلیه — طراحی مستقل، با نگاه انسانی'
+      : 'Rozi Atelier — Independent design, made personal',
     description: locale === 'fa'
-      ? 'طراحی‌های اصلی سطح را از هنرمندان مستقل سراسر جهان کشف کنید.'
-      : 'Discover original surface designs from independent artists around the world.',
+      ? 'مجموعه‌ای سنجیده از الگوها و آثار طراحان مستقل؛ برای کشف، الهام و ساختن فضاهای شخصی.'
+      : 'A considered collection of patterns and work by independent designers, made for discovery and thoughtful spaces.',
   };
 }
 
-export default async function HomePage({ params }: Props) {
+export default function HomePage({ params }: Props) {
   if (!locales.includes(params.locale as Locale)) notFound();
+  const locale = params.locale as Locale;
 
-  const [designs, categories] = await Promise.all([
-    getFeaturedDesigns(12),
-    getCategories(),
-  ]);
-
-  return <HomePageClient initialDesigns={designs} initialCategories={categories} />;
+  return (
+    <HomePageClient
+      initialDesigns={getLocalFeaturedDesigns(locale, 8)}
+      initialCategories={getLocalCategories(locale)}
+    />
+  );
 }

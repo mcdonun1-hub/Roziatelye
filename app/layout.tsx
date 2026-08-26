@@ -1,36 +1,35 @@
+import '@fontsource-variable/vazirmatn';
+import '@fontsource-variable/fraunces';
 import './globals.css';
 import type { Metadata } from 'next';
-import { Fraunces, Inter } from 'next/font/google';
+import { headers } from 'next/headers';
 import { LocaleProvider } from '@/components/locale-provider';
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-});
-
-const fraunces = Fraunces({
-  subsets: ['latin'],
-  variable: '--font-fraunces',
-  display: 'swap',
-});
+import { localeConfig, type Locale } from '@/lib/i18n';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://morrow.market'),
-  title: 'Morrow — A world of pattern, made by people',
-  description: 'Discover original surface designs from independent artists around the world.',
+  metadataBase: new URL('https://morrow-marketplace.netlify.app'),
+  title: 'رُزی آتلیه — طراحی مستقل، با نگاه انسانی',
+  description: 'مجموعه‌ای سنجیده از الگوها و آثار طراحان مستقل؛ برای کشف، الهام و ساختن فضاهای شخصی.',
   openGraph: {
-    title: 'Morrow — A world of pattern, made by people',
-    description: 'Discover original surface designs from independent artists around the world.',
-    images: ['https://images.pexels.com/photos/5117322/pexels-photo-5117322.jpeg?auto=compress&cs=tinysrgb&w=1200&h=630&fit=crop'],
+    title: 'رُزی آتلیه | Rozi Atelier',
+    description: 'Independent patterns, thoughtful stories, and the people who make them.',
+    images: ['/images/patterns/mediterranean-bloom.svg'],
   },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const localeHeader = headers().get('x-rozi-locale');
+  const locale: Locale = localeHeader === 'en' ? 'en' : 'fa';
+  const config = localeConfig[locale];
+
   return (
-    <html lang="fa" dir="rtl">
-      <body className={`${inter.variable} ${fraunces.variable} ${inter.className}`}>
-        <LocaleProvider locale="fa">{children}</LocaleProvider>
+    <html lang={config.htmlLang} dir={config.dir} suppressHydrationWarning>
+      <body>
+        {/* The fallback provider keeps legacy non-prefixed route files safe.
+            Locale routes supply their own document-managing provider. */}
+        <LocaleProvider locale={locale} manageDocument={false}>
+          {children}
+        </LocaleProvider>
       </body>
     </html>
   );

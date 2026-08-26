@@ -10,12 +10,13 @@ export function LanguageSwitcher() {
 
   return (
     <button
+      type="button"
       onClick={() => switchLocale(target)}
-      className="flex items-center gap-1.5 rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-full p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       aria-label={locale === 'fa' ? 'Switch to English' : 'تغییر به فارسی'}
     >
       <Globe size={19} />
-      <span className="text-[13px] font-medium">
+      <span className="hidden text-[13px] font-medium min-[360px]:inline">
         {locale === 'fa' ? 'EN' : 'فا'}
       </span>
     </button>

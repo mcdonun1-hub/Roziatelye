@@ -43,8 +43,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { collection, creator } = result;
 
   const title = creator
-    ? `${collection.name} — ${creator.display_name} — Morrow`
-    : `${collection.name} — Morrow`;
+    ? `${collection.name} — ${creator.display_name} — Rozi Atelier`
+    : `${collection.name} — Rozi Atelier`;
 
   const description = collection.description
     ?? (creator ? `A curated collection by ${creator.display_name}` : undefined);

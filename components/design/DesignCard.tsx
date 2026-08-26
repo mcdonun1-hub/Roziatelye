@@ -76,7 +76,7 @@ export function DesignImage({
 }: DesignImageProps) {
   return (
     <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
-      <Link href={`${base}/designs/${design.slug}`}>
+      <Link prefetch={false} href={`${base}/designs/${design.slug}`}>
         <img
           src={design.image_url}
           alt={design.title}
@@ -115,14 +115,14 @@ export function DesignMeta({ design, base, isRTL, hideCreator = false }: DesignM
   return (
     <div className="mt-3 flex items-start justify-between gap-2">
       <div className="min-w-0">
-        <Link
+        <Link prefetch={false}
           href={`${base}/designs/${design.slug}`}
           className="block truncate text-sm font-semibold transition-colors hover:text-primary"
         >
           {design.title}
         </Link>
         {!hideCreator && design.creators && (
-          <Link
+          <Link prefetch={false}
             href={`${base}/artists/${design.creators.handle}`}
             className="mt-1 block truncate text-xs text-muted-foreground hover:text-foreground"
           >
@@ -157,11 +157,13 @@ export function DesignActions({
 }: DesignActionsProps) {
   return (
     <button
+      type="button"
       onClick={() => onFavorite(designId)}
-      className={`absolute end-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-white/90 shadow-sm backdrop-blur transition-all hover:scale-105 ${
+      className={`absolute end-2 top-2 grid h-11 w-11 place-items-center rounded-full bg-white/90 shadow-sm backdrop-blur transition-all hover:scale-105 sm:end-3 sm:top-3 ${
         isFavorite ? 'text-accent' : 'text-foreground/65'
       }`}
       aria-label={isFavorite ? removeLabel : addLabel}
+      aria-pressed={isFavorite}
     >
       {isFavorite ? <Heart size={17} fill="currentColor" /> : <Heart size={17} />}
     </button>

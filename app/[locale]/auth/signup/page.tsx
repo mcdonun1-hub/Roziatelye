@@ -11,7 +11,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!locales.includes(params.locale as Locale)) return {};
   return {
-    title: params.locale === 'fa' ? 'ثبت‌نام — مورو' : 'Sign up — Morrow',
+    title: params.locale === 'fa' ? 'ثبت‌نام — رُزی آتلیه' : 'Sign up — Rozi Atelier',
   };
 }
 

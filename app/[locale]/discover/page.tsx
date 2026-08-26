@@ -1,37 +1,40 @@
-/**
- * Discover page — Server Component shell.
- *
- * Provides the initial category list and first page of designs from the server.
- * All client-side filtering, sorting, and search is handled by DiscoverClient.
- */
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { locales, type Locale } from '@/lib/i18n';
-import { getFeaturedDesigns, getCategories } from '@/services';
+import { getLocalCategories, getLocalDesigns } from '@/data/marketplace';
 import { DiscoverClient } from '@/features/discover/DiscoverClient';
 
 interface Props {
   params: { locale: string };
+  searchParams?: { category?: string };
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export function generateMetadata({ params }: Props): Metadata {
   if (!locales.includes(params.locale as Locale)) return {};
-  const locale = params.locale as Locale;
   return {
-    title: locale === 'fa' ? 'کاشف طراحی‌ها — مورو' : 'Discover Designs — Morrow',
-    description: locale === 'fa'
-      ? 'طراحی‌های اصلی سطح را بر اساس دسته‌بندی، هنرمند و سبک مرور کنید.'
-      : 'Browse original surface designs by category, artist, and style.',
+    title: params.locale === 'fa'
+      ? 'کشف طراحی‌ها — رُزی آتلیه'
+      : 'Discover designs — Rozi Atelier',
+    description: params.locale === 'fa'
+      ? 'طراحی‌های مستقل را بر اساس حال‌وهوا، هنرمند و سبک مرور کنید.'
+      : 'Browse independent surface designs by mood, artist, and style.',
   };
 }
 
-export default async function DiscoverPage({ params }: Props) {
+export default function DiscoverPage({ params, searchParams }: Props) {
   if (!locales.includes(params.locale as Locale)) notFound();
+  const locale = params.locale as Locale;
+  const categories = getLocalCategories(locale);
+  const requestedCategory = searchParams?.category ?? 'all';
+  const initialCategory = requestedCategory === 'all' || categories.some((category) => category.slug === requestedCategory)
+    ? requestedCategory
+    : 'all';
 
-  const [initialDesigns, categories] = await Promise.all([
-    getFeaturedDesigns(48),
-    getCategories(),
-  ]);
-
-  return <DiscoverClient initialDesigns={initialDesigns} categories={categories} />;
+  return (
+    <DiscoverClient
+      initialDesigns={getLocalDesigns(locale)}
+      categories={categories}
+      initialCategory={initialCategory}
+    />
+  );
 }

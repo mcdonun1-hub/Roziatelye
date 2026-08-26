@@ -1,35 +1,3 @@
-@font-face {
-  font-family: 'Beiruti';
-  src: url('/fonts/Beiruti-Regular.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Beiruti';
-  src: url('/fonts/Beiruti-Medium.ttf') format('truetype');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Beiruti';
-  src: url('/fonts/Beiruti-SemiBold.ttf') format('truetype');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Beiruti';
-  src: url('/fonts/Beiruti-Bold.ttf') format('truetype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -126,23 +94,58 @@
   * {
     @apply border-border;
   }
+
   html {
     scroll-behavior: smooth;
+    scroll-padding-top: 5.5rem;
+    overflow-x: clip;
+    text-rendering: optimizeLegibility;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Vazirmatn Variable', ui-sans-serif, system-ui, sans-serif;
     font-feature-settings: "ss01", "cv01";
+    font-synthesis: none;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 3px;
   }
 
   [dir='rtl'] {
-    font-family: 'Beiruti', system-ui, sans-serif;
+    letter-spacing: 0;
+    line-height: 1.7;
+  }
+
+  [dir='rtl'] .font-display,
+  [dir='rtl'] .brand-wordmark {
+    font-family: 'Vazirmatn Variable', ui-sans-serif, system-ui, sans-serif;
+    font-variation-settings: 'wght' 580;
     letter-spacing: 0;
   }
 
-  [dir='rtl'] .font-display {
-    font-family: 'Beiruti', system-ui, sans-serif;
+  [dir='rtl'] .uppercase {
+    text-transform: none;
     letter-spacing: 0;
+  }
+
+  [dir='ltr'] .font-display {
+    font-family: 'Fraunces Variable', Georgia, serif;
+    font-variation-settings: 'SOFT' 50, 'WONK' 0;
+  }
+
+  [dir='ltr'] .brand-wordmark {
+    font-family: 'Fraunces Variable', Georgia, serif;
+    letter-spacing: -0.035em;
   }
 
   [dir='rtl'] input,
@@ -154,7 +157,7 @@
 
 @layer utilities {
   .font-persian {
-    font-family: 'Beiruti', system-ui, sans-serif;
+    font-family: 'Vazirmatn Variable', ui-sans-serif, system-ui, sans-serif;
     letter-spacing: 0;
   }
 

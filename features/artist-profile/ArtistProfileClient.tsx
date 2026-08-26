@@ -8,9 +8,10 @@
  */
 import { useState } from 'react';
 import Link from 'next/link';
-import { Check, Globe, Heart, MapPin, Palette, Star, Users } from 'lucide-react';
+import { Check, Globe, Heart, MapPin, Palette, Users } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '@/components/site-nav';
 import { useLocale } from '@/components/locale-provider';
+import { useLocalFavorites } from '@/hooks/use-local-favorites';
 import { toPersianNumber } from '@/lib/i18n';
 import { DesignGrid } from '@/components/design/DesignCard';
 import type { Creator, Design } from '@/types/marketplace';
@@ -23,14 +24,8 @@ interface Props {
 export function ArtistProfileClient({ creator, initialDesigns }: Props) {
   const { locale, dict, isRTL } = useLocale();
   const base = `/${locale}`;
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const { favorites, toggleFavorite } = useLocalFavorites();
   const [isFollowing, setIsFollowing] = useState(false);
-
-  function toggleFavorite(id: string) {
-    setFavorites((current) =>
-      current.includes(id) ? current.filter((f) => f !== id) : [...current, id]
-    );
-  }
 
   return (
     <main className="min-h-screen bg-background">

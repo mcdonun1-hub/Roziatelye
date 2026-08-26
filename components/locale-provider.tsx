@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { Locale, Dictionary } from '@/lib/i18n';
 import { getDictionary, localeConfig } from '@/lib/i18n';
 
@@ -26,7 +26,15 @@ function getNestedValue(obj: any, path: string): string {
   return typeof current === 'string' ? current : path;
 }
 
-export function LocaleProvider({ locale, children }: { locale: Locale; children: ReactNode }) {
+export function LocaleProvider({
+  locale,
+  children,
+  manageDocument = true,
+}: {
+  locale: Locale;
+  children: ReactNode;
+  manageDocument?: boolean;
+}) {
   const [currentLocale, setCurrentLocale] = useState<Locale>(locale);
   const dict = getDictionary(currentLocale);
   const config = localeConfig[currentLocale];
@@ -34,27 +42,33 @@ export function LocaleProvider({ locale, children }: { locale: Locale; children:
   const isRTL = dir === 'rtl';
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
+    setCurrentLocale(locale);
+  }, [locale]);
+
+  useEffect(() => {
+    if (!manageDocument) return;
     document.documentElement.dir = dir;
     document.documentElement.lang = config.htmlLang;
-    if (isRTL) {
-      document.documentElement.classList.add('font-persian');
-    } else {
-      document.documentElement.classList.remove('font-persian');
-    }
-  }, [dir, config.htmlLang, isRTL]);
+    document.documentElement.dataset.locale = currentLocale;
+  }, [config.htmlLang, currentLocale, dir, manageDocument]);
 
   const switchLocale = useCallback((newLocale: Locale) => {
     setCurrentLocale(newLocale);
     const segments = pathname.split('/');
+    let nextPath: string;
     if (segments[1] === 'fa' || segments[1] === 'en') {
       segments[1] = newLocale;
-      router.push(segments.join('/'));
+      nextPath = segments.join('/');
     } else {
-      router.push(`/${newLocale}${pathname}`);
+      nextPath = `/${newLocale}${pathname}`;
     }
-  }, [router, pathname]);
+    const query = searchParams.toString();
+    const hash = typeof window === 'undefined' ? '' : window.location.hash;
+    router.push(`${nextPath}${query ? `?${query}` : ''}${hash}`);
+  }, [pathname, router, searchParams]);
 
   const t = useCallback((path: string, vars?: Record<string, string | number>) => {
     let str = getNestedValue(dict, path);

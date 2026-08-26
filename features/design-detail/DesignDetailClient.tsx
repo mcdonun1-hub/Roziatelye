@@ -8,9 +8,10 @@
  */
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Check, Download, Eye, Heart, Share2, Star } from 'lucide-react';
+import { ArrowLeft, Check, Eye, Heart, Share2, ShoppingBag, Star } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '@/components/site-nav';
 import { useLocale } from '@/components/locale-provider';
+import { useLocalFavorites } from '@/hooks/use-local-favorites';
 import { toPersianNumber } from '@/lib/i18n';
 import type { Design, Review } from '@/types/marketplace';
 
@@ -23,18 +24,36 @@ interface Props {
 export function DesignDetailClient({ design, reviews, moreDesigns }: Props) {
   const { locale, dict, isRTL } = useLocale();
   const base = `/${locale}`;
-  const [isFavorite, setIsFavorite] = useState(false);
+  const { favorites, toggleFavorite } = useLocalFavorites();
+  const [shareStatus, setShareStatus] = useState('');
+  const isFavorite = favorites.includes(design.id);
 
   const creator = design.creators;
   const ratingStars = Math.round(design.avg_rating);
   const localeCode = isRTL ? 'fa-IR' : 'en-US';
 
+  async function handleShare() {
+    const shareData = { title: design.title, text: design.description ?? design.title, url: window.location.href };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(window.location.href);
+      } else {
+        throw new Error('Sharing is unavailable');
+      }
+      setShareStatus(dict.detail.shared);
+    } catch {
+      setShareStatus(dict.detail.shareUnavailable);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-background">
-      <SiteHeader favoriteCount={isFavorite ? 1 : 0} />
+      <SiteHeader favoriteCount={favorites.length} />
 
       <div className="mx-auto max-w-[1440px] px-5 py-6 sm:px-8 lg:px-12">
-        <Link href={`${base}/discover`} className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
+        <Link prefetch={false} href={`${base}/discover`} className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
           {isRTL ? <ArrowLeft size={16} className="rotate-180" /> : <ArrowLeft size={16} />}
           {dict.detail.backToBrowse}
         </Link>
@@ -52,7 +71,7 @@ export function DesignDetailClient({ design, reviews, moreDesigns }: Props) {
                 </span>
               )}
             </div>
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center gap-2 sm:gap-3">
               <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm">
                 <Eye size={16} className="text-muted-foreground" />
                 <span className="font-semibold">{isRTL ? toPersianNumber(design.view_count.toLocaleString()) : design.view_count.toLocaleString()}</span>
@@ -63,10 +82,19 @@ export function DesignDetailClient({ design, reviews, moreDesigns }: Props) {
                 <span className="font-semibold">{isRTL ? toPersianNumber(design.favorite_count) : design.favorite_count}</span>
                 <span className="text-muted-foreground">{dict.detail.favoritesCount}</span>
               </div>
-              <button className="ms-auto grid h-10 w-10 place-items-center rounded-xl border border-border transition-colors hover:bg-muted">
+              <button
+                type="button"
+                onClick={handleShare}
+                className="ms-auto grid h-11 w-11 place-items-center rounded-xl border border-border transition-colors hover:bg-muted"
+                aria-label={dict.detail.share}
+                title={dict.detail.share}
+              >
                 <Share2 size={17} />
               </button>
             </div>
+            <p className="mt-2 min-h-5 text-end text-xs text-muted-foreground" role="status" aria-live="polite">
+              {shareStatus}
+            </p>
           </div>
 
           {/* Right — info */}
@@ -81,10 +109,10 @@ export function DesignDetailClient({ design, reviews, moreDesigns }: Props) {
               </span>
             </div>
 
-            <h1 className="font-display text-4xl font-medium tracking-[-0.04em] sm:text-5xl">{design.title}</h1>
+            <h1 className="font-display text-4xl font-medium tracking-[-0.04em] sm:text-5xl" dir="auto">{design.title}</h1>
 
             {creator && (
-              <Link href={`${base}/artists/${creator.handle}`} className="group mt-5 flex items-center gap-3">
+              <Link prefetch={false} href={`${base}/artists/${creator.handle}`} className="group mt-5 flex items-center gap-3">
                 <span className="h-11 w-11 overflow-hidden rounded-full bg-muted">
                   {creator.avatar_url && <img src={creator.avatar_url} alt={creator.display_name} className="h-full w-full object-cover" />}
                 </span>
@@ -105,17 +133,17 @@ export function DesignDetailClient({ design, reviews, moreDesigns }: Props) {
             <div className="mt-6 flex flex-wrap gap-2">
               {design.colors.map((color) => (
                 <div key={color} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
-                  <span className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: color }} />
-                  <span className="text-xs font-medium">{color}</span>
+                  <span className="h-5 w-5 rounded-full border border-border" style={{ backgroundColor: color }} aria-hidden="true" />
+                  <span className="text-xs font-medium" dir="ltr">{color}</span>
                 </div>
               ))}
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-3 rounded-2xl border border-border bg-card p-4">
+            <div className="mt-6 grid grid-cols-1 gap-4 rounded-2xl border border-border bg-card p-4 min-[420px]:grid-cols-3 min-[420px]:gap-3">
               <div>
                 <p className="text-xs text-muted-foreground">{dict.detail.dimensions}</p>
-                <p className="mt-1 text-sm font-semibold">
-                  {isRTL ? toPersianNumber(design.width_px) : design.width_px} × {isRTL ? toPersianNumber(design.height_px) : design.height_px}px
+                <p className="mt-1 text-sm font-semibold" dir={isRTL ? 'rtl' : 'ltr'}>
+                  {isRTL ? toPersianNumber(design.width_px) : design.width_px} × {isRTL ? toPersianNumber(design.height_px) : design.height_px} px
                 </p>
               </div>
               <div>
@@ -132,19 +160,24 @@ export function DesignDetailClient({ design, reviews, moreDesigns }: Props) {
               </div>
             </div>
 
-            <div className="mt-8 flex gap-3">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button
-                onClick={() => setIsFavorite((f) => !f)}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-full py-3.5 text-sm font-semibold transition-all ${
+                type="button"
+                onClick={() => toggleFavorite(design.id)}
+                aria-pressed={isFavorite}
+                className={`flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-full px-5 py-3.5 text-sm font-semibold transition-all ${
                   isFavorite ? 'bg-accent text-accent-foreground' : 'border border-border hover:border-primary hover:text-primary'
                 }`}
               >
                 <Heart size={17} fill={isFavorite ? 'currentColor' : 'none'} />
                 {isFavorite ? dict.detail.favorited : dict.design.addToFavorites}
               </button>
-              <button className="flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5">
-                <Download size={17} /> {dict.detail.getDesign}
-              </button>
+              <Link prefetch={false}
+                href={`${base}/commerce?design=${encodeURIComponent(design.slug)}`}
+                className="flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground transition-all hover:-translate-y-0.5"
+              >
+                <ShoppingBag size={17} /> {dict.detail.getDesign}
+              </Link>
             </div>
           </div>
         </div>
@@ -202,13 +235,13 @@ export function DesignDetailClient({ design, reviews, moreDesigns }: Props) {
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{dict.detail.moreFromArtist}</p>
                 <h2 className="font-display text-3xl font-medium tracking-[-0.04em]">{creator.display_name}</h2>
               </div>
-              <Link href={`${base}/artists/${creator.handle}`} className="flex items-center gap-2 text-sm font-semibold text-primary">
+              <Link prefetch={false} href={`${base}/artists/${creator.handle}`} className="flex items-center gap-2 text-sm font-semibold text-primary">
                 {dict.detail.viewProfile}
               </Link>
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-4 lg:gap-x-6">
               {moreDesigns.map((d) => (
-                <Link key={d.id} href={`${base}/designs/${d.slug}`} className="group min-w-0">
+                <Link prefetch={false} key={d.id} href={`${base}/designs/${d.slug}`} className="group min-w-0">
                   <div className="relative aspect-square overflow-hidden rounded-2xl bg-muted">
                     <img src={d.image_url} alt={d.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
                   </div>

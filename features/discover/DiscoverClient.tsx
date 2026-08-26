@@ -6,74 +6,48 @@
  * Receives server-fetched initial data. Handles all interactive state:
  * search, category filter, sort order.
  */
-import { useMemo, useState, useCallback } from 'react';
-import Link from 'next/link';
-import { Heart, Search, SlidersHorizontal, Star, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { SiteHeader, SiteFooter } from '@/components/site-nav';
 import { useLocale } from '@/components/locale-provider';
 import { toPersianNumber } from '@/lib/i18n';
-import { supabaseClient } from '@/lib/supabase/client';
+import { getLocalDesignsByCategory } from '@/data/marketplace';
+import { useLocalFavorites } from '@/hooks/use-local-favorites';
 import { DesignGrid } from '@/components/design/DesignCard';
 import type { Category, Design, DesignSortOption } from '@/types/marketplace';
 
 interface Props {
   initialDesigns: Design[];
   categories: Category[];
+  initialCategory: string;
 }
 
-export function DiscoverClient({ initialDesigns, categories }: Props) {
+export function DiscoverClient({ initialDesigns, categories, initialCategory }: Props) {
   const { locale, dict, isRTL } = useLocale();
   const base = `/${locale}`;
-
-  const [designs, setDesigns] = useState<Design[]>(initialDesigns);
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const router = useRouter();
+  const { favorites, toggleFavorite } = useLocalFavorites();
   const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [sort, setSort] = useState<DesignSortOption>('newest');
   const [showFilters, setShowFilters] = useState(false);
-  const [loading, setLoading] = useState(false);
 
-  const loadByCategory = useCallback(async (category: string) => {
-    setLoading(true);
-    try {
-      if (category === 'all') {
-        const { data } = await supabaseClient
-          .from('designs')
-          .select('*, creators(*)')
-          .eq('is_public', true)
-          .order('published_at', { ascending: false })
-          .limit(48);
-        setDesigns((data as Design[]) ?? initialDesigns);
-      } else {
-        const catId = categories.find((c) => c.slug === category)?.id;
-        if (catId) {
-          const { data } = await supabaseClient
-            .from('design_categories')
-            .select('designs!inner(*, creators(*))')
-            .eq('category_id', catId);
-          if (data) setDesigns(data.map((row: any) => row.designs) as Design[]);
-          else setDesigns([]);
-        }
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [categories, initialDesigns]);
+  useEffect(() => {
+    setActiveCategory(initialCategory);
+  }, [initialCategory]);
 
   function handleCategoryChange(slug: string) {
     setActiveCategory(slug);
     setShowFilters(false);
-    loadByCategory(slug);
-  }
-
-  function toggleFavorite(id: string) {
-    setFavorites((current) =>
-      current.includes(id) ? current.filter((f) => f !== id) : [...current, id]
-    );
+    const href = slug === 'all'
+      ? `${base}/discover`
+      : `${base}/discover?category=${encodeURIComponent(slug)}`;
+    router.push(href, { scroll: false });
   }
 
   const filtered = useMemo(() => {
-    let result = [...designs];
+    let result = getLocalDesignsByCategory(initialDesigns, activeCategory);
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -87,7 +61,7 @@ export function DiscoverClient({ initialDesigns, categories }: Props) {
       default:          result.sort((a, b) => new Date(b.published_at ?? 0).getTime() - new Date(a.published_at ?? 0).getTime());
     }
     return result;
-  }, [designs, search, sort]);
+  }, [activeCategory, initialDesigns, search, sort]);
 
   const countLabel = isRTL
     ? toPersianNumber(filtered.length) + ' ' + dict.discover.designsUnit
@@ -112,21 +86,25 @@ export function DiscoverClient({ initialDesigns, categories }: Props) {
       <div className="mx-auto max-w-[1440px] px-5 sm:px-8 lg:px-12">
         {/* Search + Sort bar */}
         <div className="flex items-center gap-3 border-b border-border py-4">
-          <div className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-card ps-4 pe-1 py-1">
             <Search size={17} className="text-muted-foreground" />
             <input
+              type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={dict.discover.searchPlaceholder}
-              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              aria-label={dict.discover.searchPlaceholder}
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
             {search && (
-              <button onClick={() => setSearch('')} className="text-muted-foreground hover:text-foreground"><X size={15} /></button>
+              <button type="button" onClick={() => setSearch('')} className="grid min-h-[44px] min-w-[44px] place-items-center text-muted-foreground hover:text-foreground" aria-label={dict.discover.clearFilters}><X size={15} /></button>
             )}
           </div>
           <button
+            type="button"
             onClick={() => setShowFilters((o) => !o)}
-            className="flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-muted lg:hidden"
+            className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl border border-border px-3 py-2.5 text-sm font-medium transition-colors hover:bg-muted sm:px-4 lg:hidden"
+            aria-expanded={showFilters}
           >
             <SlidersHorizontal size={16} /> {dict.discover.filters}
           </button>
@@ -135,7 +113,8 @@ export function DiscoverClient({ initialDesigns, categories }: Props) {
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as DesignSortOption)}
-              className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium outline-none transition-colors hover:bg-muted"
+              className="min-h-[44px] rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium outline-none transition-colors hover:bg-muted"
+              aria-label={dict.discover.sortBy}
             >
               <option value="newest">{dict.discover.sortNewest}</option>
               <option value="popular">{dict.discover.sortPopular}</option>
@@ -145,24 +124,28 @@ export function DiscoverClient({ initialDesigns, categories }: Props) {
           </div>
         </div>
 
-        <div className="flex gap-8 py-8">
+        <div className="flex flex-col gap-8 py-8 lg:flex-row">
           {/* Sidebar filters */}
-          <aside className={`${showFilters ? 'block' : 'hidden'} w-56 shrink-0 lg:block`}>
+          <aside className={`${showFilters ? 'block' : 'hidden'} w-full shrink-0 lg:block lg:w-56`}>
             <div className="sticky top-24 space-y-6">
               <div>
                 <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">{dict.discover.categories}</h3>
                 <div className="flex flex-col gap-1">
                   <button
+                    type="button"
                     onClick={() => handleCategoryChange('all')}
-                    className={`rounded-lg px-3 py-2 text-start text-sm transition-colors ${activeCategory === 'all' ? 'bg-primary/10 font-semibold text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                    className={`min-h-[44px] rounded-lg px-3 py-2 text-start text-sm transition-colors ${activeCategory === 'all' ? 'bg-primary/10 font-semibold text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                    aria-pressed={activeCategory === 'all'}
                   >
                     {dict.discover.allDesigns}
                   </button>
                   {categories.map((cat) => (
                     <button
                       key={cat.id}
+                      type="button"
                       onClick={() => handleCategoryChange(cat.slug)}
-                      className={`rounded-lg px-3 py-2 text-start text-sm transition-colors ${activeCategory === cat.slug ? 'bg-primary/10 font-semibold text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                      className={`min-h-[44px] rounded-lg px-3 py-2 text-start text-sm transition-colors ${activeCategory === cat.slug ? 'bg-primary/10 font-semibold text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                      aria-pressed={activeCategory === cat.slug}
                     >
                       {cat.name}
                       <span className="ms-2 text-xs text-muted-foreground/70">
@@ -177,20 +160,17 @@ export function DiscoverClient({ initialDesigns, categories }: Props) {
 
           {/* Designs grid */}
           <div className="min-w-0 flex-1">
-            {loading ? (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-3 lg:grid-cols-4 lg:gap-x-6">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i}>
-                    <div className="aspect-square skeleton-shimmer rounded-2xl" />
-                    <div className="mt-3 h-4 w-2/3 skeleton-shimmer rounded" />
-                    <div className="mt-2 h-3 w-1/3 skeleton-shimmer rounded" />
-                  </div>
-                ))}
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 text-center">
+            {filtered.length === 0 ? (
+              <div className="flex min-h-80 flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-muted/30 px-6 py-16 text-center">
                 <p className="text-lg font-semibold">{dict.discover.noDesigns}</p>
                 <p className="mt-2 text-sm text-muted-foreground">{dict.discover.noDesignsDesc}</p>
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); handleCategoryChange('all'); }}
+                  className="mt-6 min-h-[44px] rounded-full border border-border bg-background px-5 py-2.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary"
+                >
+                  {dict.discover.clearFilters}
+                </button>
               </div>
             ) : (
               <DesignGrid
