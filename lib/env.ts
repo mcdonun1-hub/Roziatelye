@@ -8,8 +8,11 @@
  * Variables without the prefix are server-only and must never be sent to clients.
  */
 
-function requireEnv(key: string): string {
-  const value = process.env[key];
+const _supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const _supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const _siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
+function requireEnv(value: string | undefined, key: string): string {
   if (!value) {
     // In test / build environments the variables may not be present.
     // We warn rather than throw so that `next build` does not crash when
@@ -29,18 +32,18 @@ function requireEnv(key: string): string {
   return value;
 }
 
-function optionalEnv(key: string, fallback = ''): string {
-  return process.env[key] ?? fallback;
+function optionalEnv(value: string | undefined, fallback = ''): string {
+  return value ?? fallback;
 }
 
 // ─── Supabase (public — safe in browser) ──────────────────────────────────────
 export const env = {
   supabase: {
-    url: requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
-    anonKey: requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+    url: requireEnv(_supabaseUrl, 'NEXT_PUBLIC_SUPABASE_URL'),
+    anonKey: requireEnv(_supabaseAnonKey, 'NEXT_PUBLIC_SUPABASE_ANON_KEY'),
   },
   site: {
-    url: optionalEnv('NEXT_PUBLIC_SITE_URL', 'https://morrow.market'),
+    url: optionalEnv(_siteUrl, 'https://morrow.market'),
   },
 } as const;
 
