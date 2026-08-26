@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Fraunces, Inter } from 'next/font/google';
+import { LocaleProvider } from '@/components/locale-provider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -28,7 +29,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fa" dir="rtl">
-      <body className={`${inter.variable} ${fraunces.variable} ${inter.className}`}>{children}</body>
+      <body className={`${inter.variable} ${fraunces.variable} ${inter.className}`}>
+        <LocaleProvider locale="fa">{children}</LocaleProvider>
+      </body>
     </html>
   );
 }
